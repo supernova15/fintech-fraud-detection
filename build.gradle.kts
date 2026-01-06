@@ -1,3 +1,5 @@
+import com.google.protobuf.gradle.*
+
 plugins {
     id("java")
     id("org.springframework.boot") version "3.3.2"
