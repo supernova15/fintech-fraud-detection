@@ -1,5 +1,8 @@
 plugins {
     id("java")
+    id("org.springframework.boot") version "3.3.2"
+    id("io.spring.dependency-management") version "1.1.6"
+    id("com.google.protobuf") version "0.9.4"
 }
 
 group = "org.fintech"
@@ -9,12 +12,42 @@ repositories {
     mavenCentral()
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation("org.springframework.boot:spring-boot-starter")
+    implementation("net.devh:grpc-server-spring-boot-starter:2.15.0.RELEASE")
+    implementation(platform("io.grpc:grpc-bom:1.64.0"))
+    implementation("io.grpc:grpc-stub")
+    implementation("io.grpc:grpc-protobuf")
+    runtimeOnly("io.grpc:grpc-netty-shaded")
+    compileOnly("javax.annotation:javax.annotation-api:1.3.2")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
 tasks.test {
     useJUnitPlatform()
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.3"
+    }
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.64.0"
+        }
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.plugins {
+                id("grpc")
+            }
+        }
+    }
 }

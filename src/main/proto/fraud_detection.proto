@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package org.fintech.fraud.v1;
+
+option java_multiple_files = true;
+option java_package = "org.fintech.proto.v1";
+option java_outer_classname = "FraudDetectionProto";
+
+service FraudDetectionService {
+  rpc EvaluateTransaction (TransactionRequest) returns (RiskAssessment);
+}
+
+message TransactionRequest {
+  string transaction_id = 1;
+  string account_id = 2;
+  double amount = 3;
+  string merchant = 4;
+  string currency = 5;
+  string timestamp = 6;
+}
+
+message RiskAssessment {
+  string transaction_id = 1;
+  double risk_score = 2;
+  Decision decision = 3;
+  Reason reason = 4;
+}
+
+enum Decision {
+  DECISION_UNSPECIFIED = 0;
+  APPROVE = 1;
+  REVIEW = 2;
+  REJECT = 3;
+}
+
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  LOW_RISK_AMOUNT = 1;
+  AMOUNT_REQUIRES_REVIEW = 2;
+  AMOUNT_EXCEEDS_HARD_LIMIT = 3;
+}
