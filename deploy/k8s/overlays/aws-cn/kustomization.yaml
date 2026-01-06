@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fintech-fraud-cn
+resources:
+  - ../../base
+images:
+  - name: fintech-fraud-detection
+    newName: 123456789012.dkr.ecr.cn-north-1.amazonaws.com.cn/fintech-fraud-detection
+    newTag: latest
+patches:
+  - path: service-patch.yaml

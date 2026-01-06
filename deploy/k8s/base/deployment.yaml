@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fintech-fraud-detection
+  labels:
+    app: fintech-fraud-detection
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fintech-fraud-detection
+  template:
+    metadata:
+      labels:
+        app: fintech-fraud-detection
+    spec:
+      containers:
+        - name: app
+          image: fintech-fraud-detection:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: fintech-fraud-detection-config
+          readinessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 20

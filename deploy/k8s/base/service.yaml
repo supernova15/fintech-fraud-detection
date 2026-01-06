@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fintech-fraud-detection
+  labels:
+    app: fintech-fraud-detection
+spec:
+  type: ClusterIP
+  selector:
+    app: fintech-fraud-detection
+  ports:
+    - name: grpc
+      port: 9090
+      targetPort: grpc
