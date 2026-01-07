@@ -1,0 +1,72 @@
+package org.fintech.outbox;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
+
+@Component
+@ConditionalOnProperty(prefix = "outbox", name = "enabled", havingValue = "true")
+public class OutboxRepository {
+
+    private final DynamoDbTable<OutboxRecord> table;
+    private final DynamoDbIndex<OutboxRecord> statusIndex;
+
+    public OutboxRepository(DynamoDbEnhancedClient enhancedClient, OutboxProperties properties) {
+        if (!StringUtils.hasText(properties.getTableName())) {
+            throw new IllegalStateException("outbox.table-name must be set when outbox.enabled=true");
+        }
+        this.table = enhancedClient.table(properties.getTableName(), TableSchema.fromBean(OutboxRecord.class));
+        this.statusIndex = table.index("status-index");
+    }
+
+    public boolean putIfAbsent(OutboxRecord record) {
+        try {
+            table.putItem(PutItemEnhancedRequest.builder(OutboxRecord.class)
+                .item(record)
+                .conditionExpression(Expression.builder()
+                    .expression("attribute_not_exists(outbox_id)")
+                    .build())
+                .build());
+            return true;
+        } catch (ConditionalCheckFailedException ex) {
+            return false;
+        }
+    }
+
+    public List<OutboxRecord> fetchPending(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        QueryConditional conditional = QueryConditional.keyEqualTo(Key.builder()
+            .partitionValue(OutboxStatus.PENDING.name())
+            .build());
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+            .queryConditional(conditional)
+            .limit(limit)
+            .scanIndexForward(true)
+            .build();
+
+        List<OutboxRecord> records = new ArrayList<>();
+        statusIndex.query(request).stream().forEach(page -> records.addAll(page.items()));
+        if (records.size() > limit) {
+            return records.subList(0, limit);
+        }
+        return records;
+    }
+
+    public void update(OutboxRecord record) {
+        table.updateItem(record);
+    }
+}

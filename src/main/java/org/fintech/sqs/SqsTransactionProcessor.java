@@ -38,5 +38,5 @@ public class SqsTransactionProcessor {
         return TransactionRequest.parseFrom(payload);
     }
 
-    record ProcessedTransaction(TransactionRequest request, RuleResult result) {}
+    public record ProcessedTransaction(TransactionRequest request, RuleResult result) {}
 }

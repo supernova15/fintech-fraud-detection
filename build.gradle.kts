@@ -32,8 +32,13 @@ dependencies {
     implementation("software.amazon.awssdk:sqs")
     implementation("software.amazon.awssdk:auth")
     implementation("software.amazon.awssdk:regions")
+    implementation("software.amazon.awssdk:dynamodb")
+    implementation("software.amazon.awssdk:dynamodb-enhanced")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:localstack")
 }
 
 tasks.test {

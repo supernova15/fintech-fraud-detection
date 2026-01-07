@@ -5,10 +5,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.fintech.outbox.OutboxWriteResult;
+import org.fintech.outbox.OutboxWriter;
 import org.fintech.rules.RuleResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -29,6 +32,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     private final SqsTransactionProcessor processor;
     private final ExecutorService processingExecutor;
     private final ExecutorService pollerExecutor;
+    private final ObjectProvider<OutboxWriter> outboxWriterProvider;
     private final int pollerThreads;
     private final AtomicInteger inFlight;
     private final int maxInFlight;
@@ -39,7 +43,8 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         SqsProperties properties,
         SqsTransactionProcessor processor,
         @Qualifier("sqsProcessingExecutor") ExecutorService sqsProcessingExecutor,
-        @Qualifier("sqsPollerExecutor") ExecutorService sqsPollerExecutor
+        @Qualifier("sqsPollerExecutor") ExecutorService sqsPollerExecutor,
+        ObjectProvider<OutboxWriter> outboxWriterProvider
     ) {
         this.sqsClient = sqsClient;
         this.properties = properties;
@@ -47,6 +52,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         this.processingExecutor = sqsProcessingExecutor;
         this.pollerThreads = Math.max(1, properties.getPollerThreads());
         this.pollerExecutor = sqsPollerExecutor;
+        this.outboxWriterProvider = outboxWriterProvider;
         this.inFlight = new AtomicInteger();
         this.maxInFlight = resolveMaxInFlight(properties);
     }
@@ -140,7 +146,9 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                 message.messageId(),
                 properties.getQueueUrl()
             );
-            deleteMessage(message);
+            if (writeOutbox(processed, message)) {
+                deleteMessage(message);
+            }
         } catch (Exception ex) {
             log.warn(
                 "event=sqs_process_failed message_id={} queue_url={}",
@@ -150,6 +158,31 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             );
         } finally {
             inFlight.decrementAndGet();
+        }
+    }
+
+    private boolean writeOutbox(SqsTransactionProcessor.ProcessedTransaction processed, Message message) {
+        OutboxWriter outboxWriter = outboxWriterProvider.getIfAvailable();
+        if (outboxWriter == null) {
+            return true;
+        }
+        try {
+            OutboxWriteResult result = outboxWriter.write(processed, message.messageId());
+            log.info(
+                "event=outbox_written outbox_id={} status={} transaction_id={}",
+                result.outboxId(),
+                result.created() ? "created" : "duplicate",
+                processed.request().getTransactionId()
+            );
+            return true;
+        } catch (Exception ex) {
+            log.warn(
+                "event=outbox_write_failed message_id={} transaction_id={}",
+                message.messageId(),
+                processed.request().getTransactionId(),
+                ex
+            );
+            return false;
         }
     }
 
