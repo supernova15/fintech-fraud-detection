@@ -43,6 +43,7 @@ bin/
 ### Env/log files ###
 .env*
 *.log
+*.md
 
 ### Mac OS ###
 .DS_Store
