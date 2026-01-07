@@ -28,6 +28,10 @@ dependencies {
     implementation("io.grpc:grpc-protobuf")
     runtimeOnly("io.grpc:grpc-netty-shaded")
     compileOnly("javax.annotation:javax.annotation-api:1.3.2")
+    implementation(platform("software.amazon.awssdk:bom:2.25.60"))
+    implementation("software.amazon.awssdk:sqs")
+    implementation("software.amazon.awssdk:auth")
+    implementation("software.amazon.awssdk:regions")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
