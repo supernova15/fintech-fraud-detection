@@ -40,6 +40,13 @@ tasks.test {
     useJUnitPlatform()
 }
 
+tasks.register<JavaExec>("encodeSqsMessage") {
+    group = "application"
+    description = "Outputs a base64-encoded TransactionRequest for SQS testing."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.fintech.tools.SqsTransactionRequestEncoder")
+}
+
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:3.25.3"
