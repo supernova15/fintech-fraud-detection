@@ -36,12 +36,13 @@ class SqsTransactionProcessorTest {
         String messageBody = Base64.getEncoder().encodeToString(request.toByteArray());
 
         SqsTransactionProcessor processor = new SqsTransactionProcessor(ruleEngine);
-        RuleResult result = processor.process(messageBody);
+        SqsTransactionProcessor.ProcessedTransaction processed = processor.process(messageBody);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(processed.result()).isEqualTo(expected);
         ArgumentCaptor<TransactionRequest> captor = ArgumentCaptor.forClass(TransactionRequest.class);
         verify(ruleEngine).evaluate(captor.capture());
         assertThat(captor.getValue()).isEqualTo(request);
+        assertThat(processed.request()).isEqualTo(request);
     }
 
     @Test

@@ -16,9 +16,10 @@ public class SqsTransactionProcessor {
         this.ruleEngine = ruleEngine;
     }
 
-    public RuleResult process(String messageBody) throws InvalidProtocolBufferException {
+    public ProcessedTransaction process(String messageBody) throws InvalidProtocolBufferException {
         TransactionRequest request = parseMessage(messageBody);
-        return ruleEngine.evaluate(request);
+        RuleResult result = ruleEngine.evaluate(request);
+        return new ProcessedTransaction(request, result);
     }
 
     TransactionRequest parseMessage(String messageBody) throws InvalidProtocolBufferException {
@@ -36,4 +37,6 @@ public class SqsTransactionProcessor {
         }
         return TransactionRequest.parseFrom(payload);
     }
+
+    record ProcessedTransaction(TransactionRequest request, RuleResult result) {}
 }

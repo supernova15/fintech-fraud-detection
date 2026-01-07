@@ -59,7 +59,12 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         }
         running = true;
         pollerExecutor.submit(this::pollLoop);
-        log.info("SQS consumer started for queue {}", properties.getQueueUrl());
+        log.info(
+            "event=sqs_consumer_started queue_url={} max_in_flight={} processing_threads={}",
+            properties.getQueueUrl(),
+            maxInFlight,
+            properties.getProcessingThreads()
+        );
     }
 
     @Override
@@ -67,7 +72,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         running = false;
         pollerExecutor.shutdownNow();
         processingExecutor.shutdown();
-        log.info("SQS consumer stopped");
+        log.info("event=sqs_consumer_stopped queue_url={}", properties.getQueueUrl());
     }
 
     @Override
@@ -92,7 +97,11 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             try {
                 response = sqsClient.receiveMessage(request);
             } catch (Exception ex) {
-                log.warn("Failed to poll SQS queue {}", properties.getQueueUrl(), ex);
+                log.warn(
+                    "event=sqs_poll_failed queue_url={}",
+                    properties.getQueueUrl(),
+                    ex
+                );
                 sleepBackoff();
                 continue;
             }
@@ -108,7 +117,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                     processingExecutor.submit(() -> processMessage(message));
                 } catch (RejectedExecutionException ex) {
                     inFlight.decrementAndGet();
-                    log.warn("SQS processing queue is full; backing off");
+                    log.warn("event=sqs_processing_queue_full queue_url={}", properties.getQueueUrl());
                     sleepBackoff();
                     break;
                 }
@@ -118,17 +127,25 @@ public class SqsTransactionConsumer implements SmartLifecycle {
 
     private void processMessage(Message message) {
         try {
-            RuleResult result = processor.process(message.body());
+            SqsTransactionProcessor.ProcessedTransaction processed = processor.process(message.body());
+            RuleResult result = processed.result();
             log.info(
-                "Processed SQS message {} with decision {}, reason {}, score {}",
-                message.messageId(),
+                "event=sqs_decision transaction_id={} decision={} reason={} risk_score={} message_id={} queue_url={}",
+                processed.request().getTransactionId(),
                 result.decision(),
                 result.reason(),
-                result.riskScore()
+                result.riskScore(),
+                message.messageId(),
+                properties.getQueueUrl()
             );
             deleteMessage(message);
         } catch (Exception ex) {
-            log.warn("Failed to process SQS message {}", message.messageId(), ex);
+            log.warn(
+                "event=sqs_process_failed message_id={} queue_url={}",
+                message.messageId(),
+                properties.getQueueUrl(),
+                ex
+            );
         } finally {
             inFlight.decrementAndGet();
         }
@@ -141,7 +158,12 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                 .receiptHandle(message.receiptHandle())
                 .build());
         } catch (Exception ex) {
-            log.warn("Failed to delete SQS message {}", message.messageId(), ex);
+            log.warn(
+                "event=sqs_delete_failed message_id={} queue_url={}",
+                message.messageId(),
+                properties.getQueueUrl(),
+                ex
+            );
         }
     }
 
