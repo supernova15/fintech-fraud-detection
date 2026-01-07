@@ -2,7 +2,6 @@ package org.fintech.sqs;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
@@ -29,6 +29,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     private final SqsTransactionProcessor processor;
     private final ExecutorService processingExecutor;
     private final ExecutorService pollerExecutor;
+    private final int pollerThreads;
     private final AtomicInteger inFlight;
     private final int maxInFlight;
     private volatile boolean running = false;
@@ -37,17 +38,15 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         SqsClient sqsClient,
         SqsProperties properties,
         SqsTransactionProcessor processor,
-        ExecutorService sqsProcessingExecutor
+        @Qualifier("sqsProcessingExecutor") ExecutorService sqsProcessingExecutor,
+        @Qualifier("sqsPollerExecutor") ExecutorService sqsPollerExecutor
     ) {
         this.sqsClient = sqsClient;
         this.properties = properties;
         this.processor = processor;
         this.processingExecutor = sqsProcessingExecutor;
-        this.pollerExecutor = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setName("sqs-poller");
-            return thread;
-        });
+        this.pollerThreads = Math.max(1, properties.getPollerThreads());
+        this.pollerExecutor = sqsPollerExecutor;
         this.inFlight = new AtomicInteger();
         this.maxInFlight = resolveMaxInFlight(properties);
     }
@@ -58,11 +57,14 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             return;
         }
         running = true;
-        pollerExecutor.submit(this::pollLoop);
+        for (int i = 0; i < pollerThreads; i++) {
+            pollerExecutor.submit(this::pollLoop);
+        }
         log.info(
-            "event=sqs_consumer_started queue_url={} max_in_flight={} processing_threads={}",
+            "event=sqs_consumer_started queue_url={} max_in_flight={} poller_threads={} processing_threads={}",
             properties.getQueueUrl(),
             maxInFlight,
+            pollerThreads,
             properties.getProcessingThreads()
         );
     }

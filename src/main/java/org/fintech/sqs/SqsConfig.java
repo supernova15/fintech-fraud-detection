@@ -2,7 +2,10 @@ package org.fintech.sqs;
 
 import java.net.URI;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -48,16 +51,33 @@ public class SqsConfig {
     @ConditionalOnProperty(prefix = "sqs", name = "enabled", havingValue = "true")
     ExecutorService sqsProcessingExecutor(SqsProperties properties) {
         int threads = Math.max(1, properties.getProcessingThreads());
-        int capacity = Math.max(1, properties.getProcessingQueueCapacity());
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
             threads,
             threads,
-            0L,
-            TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<>(capacity),
+            properties.getProcessingKeepAliveSeconds(),
+            TimeUnit.SECONDS,
+            createQueue(properties.getProcessingQueueType(), properties.getProcessingQueueCapacity()),
             namedThreadFactory("sqs-worker-"),
             new ThreadPoolExecutor.CallerRunsPolicy()
         );
+        executor.allowCoreThreadTimeOut(properties.isProcessingAllowCoreTimeout());
+        return executor;
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnProperty(prefix = "sqs", name = "enabled", havingValue = "true")
+    ExecutorService sqsPollerExecutor(SqsProperties properties) {
+        int threads = Math.max(1, properties.getPollerThreads());
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            threads,
+            threads,
+            properties.getPollerKeepAliveSeconds(),
+            TimeUnit.SECONDS,
+            createQueue(properties.getPollerQueueType(), properties.getPollerQueueCapacity()),
+            namedThreadFactory("sqs-poller-")
+        );
+        executor.allowCoreThreadTimeOut(properties.isPollerAllowCoreTimeout());
+        return executor;
     }
 
     private static ThreadFactory namedThreadFactory(String prefix) {
@@ -67,6 +87,23 @@ public class SqsConfig {
             thread.setName(prefix + index.getAndIncrement());
             return thread;
         };
+    }
+
+    private static BlockingQueue<Runnable> createQueue(String queueType, int queueCapacity) {
+        String normalized = queueType == null ? "" : queueType.trim().toLowerCase();
+        switch (normalized) {
+            case "linked":
+                if (queueCapacity > 0) {
+                    return new LinkedBlockingQueue<>(queueCapacity);
+                }
+                return new LinkedBlockingQueue<>();
+            case "array":
+                int resolvedCapacity = queueCapacity > 0 ? queueCapacity : 1024;
+                return new ArrayBlockingQueue<>(resolvedCapacity);
+            case "synchronous":
+            default:
+                return new SynchronousQueue<>();
+        }
     }
 
     private static software.amazon.awssdk.auth.credentials.AwsCredentialsProvider resolveCredentials(
