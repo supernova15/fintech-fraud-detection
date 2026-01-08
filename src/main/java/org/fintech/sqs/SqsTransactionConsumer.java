@@ -5,6 +5,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.fintech.outbox.OutboxWriteResult;
 import org.fintech.outbox.OutboxWriter;
 import org.fintech.rules.RuleResult;
@@ -36,6 +39,13 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     private final int pollerThreads;
     private final AtomicInteger inFlight;
     private final int maxInFlight;
+    private final Counter pollCount;
+    private final Counter pollFailure;
+    private final Timer pollLatency;
+    private final Counter messagesReceived;
+    private final Counter processSuccess;
+    private final Counter processFailure;
+    private final Timer processLatency;
     private volatile boolean running = false;
 
     public SqsTransactionConsumer(
@@ -44,7 +54,8 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         SqsTransactionProcessor processor,
         @Qualifier("sqsProcessingExecutor") ExecutorService sqsProcessingExecutor,
         @Qualifier("sqsPollerExecutor") ExecutorService sqsPollerExecutor,
-        ObjectProvider<OutboxWriter> outboxWriterProvider
+        ObjectProvider<OutboxWriter> outboxWriterProvider,
+        MeterRegistry meterRegistry
     ) {
         this.sqsClient = sqsClient;
         this.properties = properties;
@@ -55,6 +66,14 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         this.outboxWriterProvider = outboxWriterProvider;
         this.inFlight = new AtomicInteger();
         this.maxInFlight = resolveMaxInFlight(properties);
+        this.pollCount = meterRegistry.counter("sqs.poll.count");
+        this.pollFailure = meterRegistry.counter("sqs.poll.failure");
+        this.pollLatency = meterRegistry.timer("sqs.poll.latency");
+        this.messagesReceived = meterRegistry.counter("sqs.messages.received");
+        this.processSuccess = meterRegistry.counter("sqs.process.success");
+        this.processFailure = meterRegistry.counter("sqs.process.failure");
+        this.processLatency = meterRegistry.timer("sqs.process.latency");
+        meterRegistry.gauge("sqs.in_flight", inFlight);
     }
 
     @Override
@@ -102,9 +121,13 @@ public class SqsTransactionConsumer implements SmartLifecycle {
 
             ReceiveMessageRequest request = buildReceiveRequest();
             ReceiveMessageResponse response;
+            long pollStart = System.nanoTime();
             try {
                 response = sqsClient.receiveMessage(request);
+                pollCount.increment();
+                pollLatency.record(System.nanoTime() - pollStart, TimeUnit.NANOSECONDS);
             } catch (Exception ex) {
+                pollFailure.increment();
                 log.warn(
                     "event=sqs_poll_failed queue_url={}",
                     properties.getQueueUrl(),
@@ -118,6 +141,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             if (messages == null || messages.isEmpty()) {
                 continue;
             }
+            messagesReceived.increment(messages.size());
 
             for (Message message : messages) {
                 try {
@@ -134,6 +158,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     }
 
     private void processMessage(Message message) {
+        long start = System.nanoTime();
         try {
             SqsTransactionProcessor.ProcessedTransaction processed = processor.process(message.body());
             RuleResult result = processed.result();
@@ -149,7 +174,9 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             if (writeOutbox(processed, message)) {
                 deleteMessage(message);
             }
+            processSuccess.increment();
         } catch (Exception ex) {
+            processFailure.increment();
             log.warn(
                 "event=sqs_process_failed message_id={} queue_url={}",
                 message.messageId(),
@@ -157,6 +184,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                 ex
             );
         } finally {
+            processLatency.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
             inFlight.decrementAndGet();
         }
     }
