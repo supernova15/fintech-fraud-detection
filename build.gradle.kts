@@ -30,6 +30,7 @@ dependencies {
     compileOnly("javax.annotation:javax.annotation-api:1.3.2")
     implementation(platform("software.amazon.awssdk:bom:2.25.60"))
     implementation("software.amazon.awssdk:sqs")
+    implementation("software.amazon.awssdk:sts")
     implementation("software.amazon.awssdk:auth")
     implementation("software.amazon.awssdk:regions")
     implementation("software.amazon.awssdk:dynamodb")
@@ -39,6 +40,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:localstack")
+
+    implementation("software.amazon.awssdk:sts")
 }
 
 tasks.test {
