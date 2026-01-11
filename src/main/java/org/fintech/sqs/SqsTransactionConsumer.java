@@ -32,7 +32,6 @@ public class SqsTransactionConsumer implements SmartLifecycle {
 
     private final SqsClient sqsClient;
     private final SqsProperties properties;
-    private final SqsQueueUrlResolver queueUrlResolver;
     private final SqsTransactionProcessor processor;
     private final ExecutorService processingExecutor;
     private final ExecutorService pollerExecutor;
@@ -47,13 +46,11 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     private final Counter processSuccess;
     private final Counter processFailure;
     private final Timer processLatency;
-    private volatile String queueUrl;
     private volatile boolean running = false;
 
     public SqsTransactionConsumer(
         SqsClient sqsClient,
         SqsProperties properties,
-        SqsQueueUrlResolver queueUrlResolver,
         SqsTransactionProcessor processor,
         @Qualifier("sqsProcessingExecutor") ExecutorService sqsProcessingExecutor,
         @Qualifier("sqsPollerExecutor") ExecutorService sqsPollerExecutor,
@@ -62,7 +59,6 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     ) {
         this.sqsClient = sqsClient;
         this.properties = properties;
-        this.queueUrlResolver = queueUrlResolver;
         this.processor = processor;
         this.processingExecutor = sqsProcessingExecutor;
         this.pollerThreads = Math.max(1, properties.getPollerThreads());
@@ -85,19 +81,13 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         if (running) {
             return;
         }
-        this.queueUrl = queueUrlResolver.resolveQueueUrl(
-            properties.getQueueName(),
-            properties.getQueueUrl(),
-            "sqs.queue-name",
-            "sqs.queue-url"
-        );
         running = true;
         for (int i = 0; i < pollerThreads; i++) {
             pollerExecutor.submit(this::pollLoop);
         }
         log.info(
             "event=sqs_consumer_started queue_url={} max_in_flight={} poller_threads={} processing_threads={}",
-            queueUrl,
+            properties.getQueueUrl(),
             maxInFlight,
             pollerThreads,
             properties.getProcessingThreads()
@@ -109,7 +99,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         running = false;
         pollerExecutor.shutdownNow();
         processingExecutor.shutdown();
-        log.info("event=sqs_consumer_stopped queue_url={}", queueUrl);
+        log.info("event=sqs_consumer_stopped queue_url={}", properties.getQueueUrl());
     }
 
     @Override
@@ -140,7 +130,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                 pollFailure.increment();
                 log.warn(
                     "event=sqs_poll_failed queue_url={}",
-                    queueUrl,
+                    properties.getQueueUrl(),
                     ex
                 );
                 sleepBackoff();
@@ -159,7 +149,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                     processingExecutor.submit(() -> processMessage(message));
                 } catch (RejectedExecutionException ex) {
                     inFlight.decrementAndGet();
-                    log.warn("event=sqs_processing_queue_full queue_url={}", queueUrl);
+                    log.warn("event=sqs_processing_queue_full queue_url={}", properties.getQueueUrl());
                     sleepBackoff();
                     break;
                 }
@@ -179,7 +169,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
                 result.reason(),
                 result.riskScore(),
                 message.messageId(),
-                queueUrl
+                properties.getQueueUrl()
             );
             if (writeOutbox(processed, message)) {
                 deleteMessage(message);
@@ -190,7 +180,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             log.warn(
                 "event=sqs_process_failed message_id={} queue_url={}",
                 message.messageId(),
-                queueUrl,
+                properties.getQueueUrl(),
                 ex
             );
         } finally {
@@ -227,14 +217,14 @@ public class SqsTransactionConsumer implements SmartLifecycle {
     private void deleteMessage(Message message) {
         try {
             sqsClient.deleteMessage(DeleteMessageRequest.builder()
-                .queueUrl(queueUrl)
+                .queueUrl(properties.getQueueUrl())
                 .receiptHandle(message.receiptHandle())
                 .build());
         } catch (Exception ex) {
             log.warn(
                 "event=sqs_delete_failed message_id={} queue_url={}",
                 message.messageId(),
-                queueUrl,
+                properties.getQueueUrl(),
                 ex
             );
         }
@@ -244,7 +234,7 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         int maxMessages = Math.min(10, Math.max(1, properties.getMaxMessages()));
         int waitTimeSeconds = Math.max(0, Math.min(20, properties.getWaitTimeSeconds()));
         ReceiveMessageRequest.Builder builder = ReceiveMessageRequest.builder()
-            .queueUrl(queueUrl)
+            .queueUrl(properties.getQueueUrl())
             .maxNumberOfMessages(maxMessages)
             .waitTimeSeconds(waitTimeSeconds);
 

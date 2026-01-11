@@ -29,9 +29,8 @@ public class SqsConfig {
     @Bean
     @ConditionalOnProperty(prefix = "sqs", name = "enabled", havingValue = "true")
     SqsClient sqsClient(SqsProperties properties) {
-        if (!StringUtils.hasText(properties.getQueueUrl())
-            && !StringUtils.hasText(properties.getQueueName())) {
-            throw new IllegalStateException("sqs.queue-name or sqs.queue-url must be set when sqs.enabled=true");
+        if (!StringUtils.hasText(properties.getQueueUrl())) {
+            throw new IllegalStateException("sqs.queue-url must be set when sqs.enabled=true");
         }
         if (!StringUtils.hasText(properties.getRegion())) {
             throw new IllegalStateException("sqs.region must be set when sqs.enabled=true");

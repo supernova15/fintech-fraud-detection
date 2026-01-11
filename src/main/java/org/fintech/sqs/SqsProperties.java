@@ -7,7 +7,6 @@ public class SqsProperties {
 
     private boolean enabled = false;
     private String queueUrl;
-    private String queueName;
     private String region;
     private String endpointOverride;
     private String accessKey;
@@ -42,14 +41,6 @@ public class SqsProperties {
 
     public void setQueueUrl(String queueUrl) {
         this.queueUrl = queueUrl;
-    }
-
-    public String getQueueName() {
-        return queueName;
-    }
-
-    public void setQueueName(String queueName) {
-        this.queueName = queueName;
     }
 
     public String getRegion() {
