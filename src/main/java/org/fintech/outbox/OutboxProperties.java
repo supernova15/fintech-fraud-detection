@@ -8,6 +8,7 @@ public class OutboxProperties {
     private boolean enabled = false;
     private String tableName;
     private String decisionQueueUrl;
+    private String decisionQueueName;
     private String region;
     private String endpointOverride;
     private String accessKey;
@@ -38,6 +39,14 @@ public class OutboxProperties {
 
     public void setDecisionQueueUrl(String decisionQueueUrl) {
         this.decisionQueueUrl = decisionQueueUrl;
+    }
+
+    public String getDecisionQueueName() {
+        return decisionQueueName;
+    }
+
+    public void setDecisionQueueName(String decisionQueueName) {
+        this.decisionQueueName = decisionQueueName;
     }
 
     public String getRegion() {
