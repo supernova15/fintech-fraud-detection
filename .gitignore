@@ -47,3 +47,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+###  policy.json for aws
+policy.json
+
