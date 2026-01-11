@@ -17,7 +17,7 @@ spec:
       containers:
         - name: app
           image: fintech-fraud-detection:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: grpc
               containerPort: 9090
