@@ -1,5 +1,6 @@
-ARG BASE_JDK_IMAGE=eclipse-temurin:21-jdk
-ARG BASE_JRE_IMAGE=eclipse-temurin:21-jre
+ARG BASE_JDK_IMAGE=public.ecr.aws/docker/library/eclipse-temurin:21-jdk
+ARG BASE_JRE_IMAGE=public.ecr.aws/docker/library/eclipse-temurin:21-jre
+
 FROM ${BASE_JDK_IMAGE} AS build
 WORKDIR /workspace
 COPY gradlew .

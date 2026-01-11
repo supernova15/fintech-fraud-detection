@@ -1,0 +1,7 @@
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+RUN useradd --create-home --uid 10001 appuser
+COPY build/libs/*.jar /app/app.jar
+USER 10001
+EXPOSE 9090
+ENTRYPOINT ["java","-jar","/app/app.jar"]
