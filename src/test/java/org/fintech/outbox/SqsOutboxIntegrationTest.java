@@ -65,7 +65,7 @@ class SqsOutboxIntegrationTest {
         ensureLocalStackResources();
 
         registry.add("sqs.enabled", () -> true);
-        registry.add("sqs.queue-url", () -> transactionsQueueUrl);
+        registry.add("sqs.queue-name", () -> TRANSACTIONS_QUEUE);
         registry.add("sqs.region", () -> localstack.getRegion());
         registry.add("sqs.endpoint-override", () -> localstack.getEndpointOverride(LocalStackContainer.Service.SQS)
             .toString());
@@ -74,7 +74,7 @@ class SqsOutboxIntegrationTest {
 
         registry.add("outbox.enabled", () -> true);
         registry.add("outbox.table-name", () -> OUTBOX_TABLE);
-        registry.add("outbox.decision-queue-url", () -> decisionsQueueUrl);
+        registry.add("outbox.decision-queue-name", () -> DECISIONS_QUEUE);
         registry.add("outbox.region", () -> localstack.getRegion());
         registry.add("outbox.endpoint-override", () -> localstack.getEndpointOverride(LocalStackContainer.Service.DYNAMODB)
             .toString());

@@ -7,6 +7,7 @@ public class OutboxProperties {
 
     private boolean enabled = false;
     private String tableName;
+    private String decisionQueueName;
     private String decisionQueueUrl;
     private String region;
     private String endpointOverride;
@@ -30,6 +31,14 @@ public class OutboxProperties {
 
     public void setTableName(String tableName) {
         this.tableName = tableName;
+    }
+
+    public String getDecisionQueueName() {
+        return decisionQueueName;
+    }
+
+    public void setDecisionQueueName(String decisionQueueName) {
+        this.decisionQueueName = decisionQueueName;
     }
 
     public String getDecisionQueueUrl() {
