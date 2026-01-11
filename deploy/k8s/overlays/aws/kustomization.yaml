@@ -5,7 +5,7 @@ resources:
   - ../../base
 images:
   - name: fintech-fraud-detection
-    newName: 123456789012.dkr.ecr.us-west-2.amazonaws.com/fintech-fraud-detection
+    newName: <aws_account_id>.dkr.ecr.us-east-1.amazonaws.com/fintech-fraud-detection
     newTag: latest
 patches:
   - path: service-patch.yaml
