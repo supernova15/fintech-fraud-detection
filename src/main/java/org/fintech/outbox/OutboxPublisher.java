@@ -14,7 +14,6 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 @Component
@@ -50,7 +49,9 @@ public class OutboxPublisher implements SmartLifecycle {
         this.publishFailed = meterRegistry.counter("outbox.publish.failed");
         this.publishDead = meterRegistry.counter("outbox.publish.dead");
 
-        resolveDecisionQueueUrl();
+        if (!StringUtils.hasText(properties.getDecisionQueueUrl())) {
+            throw new IllegalStateException("outbox.decision-queue-url must be set when outbox.enabled=true");
+        }
     }
 
     @Override
@@ -139,29 +140,6 @@ public class OutboxPublisher implements SmartLifecycle {
             TimeUnit.MILLISECONDS.sleep(interval);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private void resolveDecisionQueueUrl() {
-        if (StringUtils.hasText(properties.getDecisionQueueUrl())) {
-            return;
-        }
-        if (!StringUtils.hasText(properties.getDecisionQueueName())) {
-            throw new IllegalStateException(
-                "outbox.decision-queue-name or outbox.decision-queue-url must be set when outbox.enabled=true"
-            );
-        }
-        String queueName = properties.getDecisionQueueName().trim();
-        try {
-            String queueUrl = sqsClient.getQueueUrl(GetQueueUrlRequest.builder()
-                .queueName(queueName)
-                .build()).queueUrl();
-            properties.setDecisionQueueUrl(queueUrl);
-        } catch (Exception ex) {
-            throw new IllegalStateException(
-                "Failed to resolve outbox decision queue URL for name=" + queueName,
-                ex
-            );
         }
     }
 }

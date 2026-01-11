@@ -6,7 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SqsProperties {
 
     private boolean enabled = false;
-    private String queueName;
     private String queueUrl;
     private String region;
     private String endpointOverride;
@@ -34,14 +33,6 @@ public class SqsProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public String getQueueName() {
-        return queueName;
-    }
-
-    public void setQueueName(String queueName) {
-        this.queueName = queueName;
     }
 
     public String getQueueUrl() {

@@ -21,7 +21,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.SqsClientBuilder;
-import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
 @Configuration
 @EnableConfigurationProperties(SqsProperties.class)
@@ -30,6 +29,9 @@ public class SqsConfig {
     @Bean
     @ConditionalOnProperty(prefix = "sqs", name = "enabled", havingValue = "true")
     SqsClient sqsClient(SqsProperties properties) {
+        if (!StringUtils.hasText(properties.getQueueUrl())) {
+            throw new IllegalStateException("sqs.queue-url must be set when sqs.enabled=true");
+        }
         if (!StringUtils.hasText(properties.getRegion())) {
             throw new IllegalStateException("sqs.region must be set when sqs.enabled=true");
         }
@@ -42,9 +44,7 @@ public class SqsConfig {
             builder.endpointOverride(URI.create(properties.getEndpointOverride()));
         }
 
-        SqsClient client = builder.build();
-        resolveQueueUrl(client, properties);
-        return client;
+        return builder.build();
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -115,28 +115,5 @@ public class SqsConfig {
             );
         }
         return DefaultCredentialsProvider.create();
-    }
-
-    private static void resolveQueueUrl(SqsClient client, SqsProperties properties) {
-        if (StringUtils.hasText(properties.getQueueUrl())) {
-            return;
-        }
-        if (!StringUtils.hasText(properties.getQueueName())) {
-            throw new IllegalStateException(
-                "sqs.queue-name or sqs.queue-url must be set when sqs.enabled=true"
-            );
-        }
-        String queueName = properties.getQueueName().trim();
-        try {
-            String queueUrl = client.getQueueUrl(GetQueueUrlRequest.builder()
-                .queueName(queueName)
-                .build()).queueUrl();
-            properties.setQueueUrl(queueUrl);
-        } catch (Exception ex) {
-            throw new IllegalStateException(
-                "Failed to resolve SQS queue URL for name=" + queueName,
-                ex
-            );
-        }
     }
 }
