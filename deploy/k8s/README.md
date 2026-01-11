@@ -15,3 +15,7 @@ Before applying, update the image registry and tag in:
 You can also adjust rule thresholds and thread pool settings in:
 
 - `deploy/k8s/base/configmap.yaml`
+
+Outbox and SQS settings live in the same ConfigMap. Ensure you provide:
+- `sqs.queue-url`, `sqs.region`
+- `outbox.table-name`, `outbox.decision-queue-url`, and AWS credentials/region overrides if needed

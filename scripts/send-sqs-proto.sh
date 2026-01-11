@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 set -e
 
-QUEUE_URL=${QUEUE_URL:-http://localhost:4566/000000000000/fintech-transactions}
+QUEUE_URL=${QUEUE_URL:-}
+QUEUE_NAME=${QUEUE_NAME:-fintech-transactions}
 REGION=${REGION:-us-east-1}
 
 if command -v awslocal >/dev/null 2>&1; then
@@ -16,6 +17,14 @@ else
 fi
 
 BASE64_PAYLOAD=$(./gradlew -q encodeSqsMessage)
+
+if [ -z "$QUEUE_URL" ]; then
+  QUEUE_URL=$(${AWS_CMD} sqs get-queue-url \
+    --queue-name "$QUEUE_NAME" \
+    --query 'QueueUrl' \
+    --output text \
+    --region "$REGION")
+fi
 
 ${AWS_CMD} sqs send-message \
   --queue-url "$QUEUE_URL" \

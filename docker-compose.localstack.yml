@@ -5,9 +5,10 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=sqs,dynamodb
-      - DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+      - SQS_ENDPOINT_STRATEGY=path
+      - LOCALSTACK_HOST=localhost:4566
     volumes:
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-sqs.sh
       - /var/run/docker.sock:/var/run/docker.sock
