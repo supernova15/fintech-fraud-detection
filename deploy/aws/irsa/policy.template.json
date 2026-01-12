@@ -32,6 +32,12 @@
         "${OUTBOX_TABLE_ARN}",
         "${OUTBOX_TABLE_ARN}/index/*"
       ]
+    },
+    {
+      "Sid": "CloudWatchMetrics",
+      "Effect": "Allow",
+      "Action": ["cloudwatch:PutMetricData"],
+      "Resource": "*"
     }
   ]
 }

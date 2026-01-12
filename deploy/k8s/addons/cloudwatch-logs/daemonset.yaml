@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: aws-for-fluent-bit
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: aws-for-fluent-bit
+spec:
+  selector:
+    matchLabels:
+      k8s-app: aws-for-fluent-bit
+  template:
+    metadata:
+      labels:
+        k8s-app: aws-for-fluent-bit
+    spec:
+      serviceAccountName: aws-for-fluent-bit
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: aws-for-fluent-bit
+          image: amazon/aws-for-fluent-bit:2.32.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: LOG_GROUP_NAME
+              value: fintech-fraud-detection
+            - name: LOG_STREAM_PREFIX
+              value: fintech-fraud-
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              memory: 200Mi
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: config
+              mountPath: /fluent-bit/etc/
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: config
+          configMap:
+            name: aws-for-fluent-bit

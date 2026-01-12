@@ -19,3 +19,11 @@ You can also adjust rule thresholds and thread pool settings in:
 Outbox and SQS settings live in the same ConfigMap. Ensure you provide:
 - `sqs.queue-url`, `sqs.region`
 - `outbox.table-name`, `outbox.decision-queue-url`, and AWS credentials/region overrides if needed
+
+CloudWatch metrics can be enabled via environment variables in
+`deploy/k8s/base/configmap.yaml` (`MANAGEMENT_METRICS_EXPORT_CLOUDWATCH2_*`).
+
+For CloudWatch Logs, apply the Fluent Bit add-on:
+```
+kubectl apply -k deploy/k8s/addons/cloudwatch-logs
+```
