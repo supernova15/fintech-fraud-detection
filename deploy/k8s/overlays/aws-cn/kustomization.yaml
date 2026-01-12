@@ -9,3 +9,4 @@ images:
     newTag: latest
 patches:
   - path: service-patch.yaml
+  - path: serviceaccount-patch.yaml

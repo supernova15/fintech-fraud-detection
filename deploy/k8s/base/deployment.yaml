@@ -14,6 +14,7 @@ spec:
       labels:
         app: fintech-fraud-detection
     spec:
+      serviceAccountName: fintech-fraud-detection
       containers:
         - name: app
           image: fintech-fraud-detection:latest
