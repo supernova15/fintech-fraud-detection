@@ -1,9 +1,11 @@
 package org.fintech.outbox;
 
-import java.time.Instant;
-import java.util.Base64;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 import org.fintech.proto.v1.RiskAssessment;
 import org.fintech.sqs.SqsTransactionProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,15 +20,18 @@ public class OutboxWriter {
     private final Counter writeCreated;
     private final Counter writeDuplicate;
     private final Counter writeFailed;
+    private final Timer writeLatency;
 
     public OutboxWriter(OutboxRepository repository, MeterRegistry meterRegistry) {
         this.repository = repository;
         this.writeCreated = meterRegistry.counter("outbox.write.created");
         this.writeDuplicate = meterRegistry.counter("outbox.write.duplicate");
         this.writeFailed = meterRegistry.counter("outbox.write.failed");
+        this.writeLatency = meterRegistry.timer("outbox.write.latency");
     }
 
     public OutboxWriteResult write(SqsTransactionProcessor.ProcessedTransaction processed, String messageId) {
+        long start = System.nanoTime();
         String transactionId = processed.request().getTransactionId();
         String outboxId = StringUtils.hasText(transactionId) ? transactionId : messageId;
         long now = Instant.now().toEpochMilli();
@@ -63,6 +68,8 @@ public class OutboxWriter {
         } catch (Exception ex) {
             writeFailed.increment();
             throw ex;
+        } finally {
+            writeLatency.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
         }
     }
 }

@@ -2,6 +2,7 @@ package org.fintech.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.fintech.proto.v1.Decision;
 import org.fintech.proto.v1.TransactionRequest;
@@ -15,7 +16,7 @@ class RuleEngineTest {
             new AmountDenyRule(100.0),
             new AmountReviewRule(50.0),
             new DefaultApproveRule(0.1)
-        ));
+        ), new SimpleMeterRegistry());
 
         RuleResult result = engine.evaluate(baseRequest().setAmount(150.0).build());
 
@@ -28,7 +29,7 @@ class RuleEngineTest {
             new AmountDenyRule(100.0),
             new AmountReviewRule(50.0),
             new DefaultApproveRule(0.1)
-        ));
+        ), new SimpleMeterRegistry());
 
         RuleResult reviewResult = engine.evaluate(baseRequest().setAmount(75.0).build());
         RuleResult approveResult = engine.evaluate(baseRequest().setAmount(10.0).build());

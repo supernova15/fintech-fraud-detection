@@ -2,6 +2,7 @@ package org.fintech.outbox;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +30,7 @@ public class OutboxPublisher implements SmartLifecycle {
     private final Counter publishSuccess;
     private final Counter publishFailed;
     private final Counter publishDead;
+    private final Timer publishLatency;
     private volatile boolean running = false;
 
     public OutboxPublisher(
@@ -48,6 +50,7 @@ public class OutboxPublisher implements SmartLifecycle {
         this.publishSuccess = meterRegistry.counter("outbox.publish.success");
         this.publishFailed = meterRegistry.counter("outbox.publish.failed");
         this.publishDead = meterRegistry.counter("outbox.publish.dead");
+        this.publishLatency = meterRegistry.timer("outbox.publish.latency");
 
         if (!StringUtils.hasText(properties.getDecisionQueueUrl())) {
             throw new IllegalStateException("outbox.decision-queue-url must be set when outbox.enabled=true");
@@ -97,6 +100,7 @@ public class OutboxPublisher implements SmartLifecycle {
     }
 
     private void publishRecord(OutboxRecord record) {
+        long start = System.nanoTime();
         int attempts = record.getAttempts();
         try {
             sqsClient.sendMessage(SendMessageRequest.builder()
@@ -133,6 +137,8 @@ public class OutboxPublisher implements SmartLifecycle {
                 attempts,
                 ex
             );
+        } finally {
+            publishLatency.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
         }
     }
 
