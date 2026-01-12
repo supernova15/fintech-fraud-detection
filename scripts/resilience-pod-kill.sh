@@ -63,6 +63,20 @@ if [ -z "$DECISIONS_QUEUE_URL" ]; then
   DECISIONS_QUEUE_URL=$(resolve_queue_url "$DECISIONS_QUEUE_NAME")
 fi
 
+if [ -z "$QUEUE_URL" ] || [ "$QUEUE_URL" = "None" ]; then
+  echo "Missing QUEUE_URL. Set QUEUE_URL or QUEUE_NAME to resolve it." >&2
+  exit 1
+fi
+
+if [ -z "$DECISIONS_QUEUE_URL" ] || [ "$DECISIONS_QUEUE_URL" = "None" ]; then
+  echo "Missing DECISIONS_QUEUE_URL. Set DECISIONS_QUEUE_URL or DECISIONS_QUEUE_NAME to resolve it." >&2
+  exit 1
+fi
+
+echo "Using queues:"
+echo "  transactions=$QUEUE_URL"
+echo "  decisions=$DECISIONS_QUEUE_URL"
+
 kill_pods() {
   sleep "$START_DELAY_SECS"
   i=1
