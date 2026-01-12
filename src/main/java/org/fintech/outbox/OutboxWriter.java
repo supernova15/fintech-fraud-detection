@@ -49,6 +49,7 @@ public class OutboxWriter {
         record.setRiskScore(processed.result().riskScore());
         record.setCreatedAt(now);
         record.setUpdatedAt(now);
+        record.setNextAttemptAt(now);
         record.setAttempts(0);
 
         try {

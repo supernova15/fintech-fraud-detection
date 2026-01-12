@@ -116,7 +116,9 @@ public class OutboxPublisher implements SmartLifecycle {
         } catch (Exception ex) {
             attempts += 1;
             record.setAttempts(attempts);
-            record.setUpdatedAt(Instant.now().toEpochMilli());
+            long now = Instant.now().toEpochMilli();
+            record.setUpdatedAt(now);
+            record.setNextAttemptAt(now + computeBackoffMillis(attempts));
             record.setLastError(ex.getMessage());
             if (attempts >= properties.getMaxPublishAttempts()) {
                 record.setStatus(OutboxStatus.FAILED.name());
@@ -141,5 +143,10 @@ public class OutboxPublisher implements SmartLifecycle {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private long computeBackoffMillis(int attempts) {
+        long baseBackoff = Math.max(0, properties.getPublishBackoffMillis());
+        return baseBackoff * Math.max(1, attempts);
     }
 }

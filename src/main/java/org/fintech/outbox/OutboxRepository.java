@@ -14,6 +14,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 
 @Component
@@ -49,12 +50,20 @@ public class OutboxRepository {
         if (limit <= 0) {
             return List.of();
         }
+        long now = System.currentTimeMillis();
+        Expression filterExpression = Expression.builder()
+            .expression("attribute_not_exists(next_attempt_at) OR next_attempt_at <= :now")
+            .expressionValues(
+                java.util.Map.of(":now", AttributeValue.builder().n(Long.toString(now)).build())
+            )
+            .build();
         QueryConditional conditional = QueryConditional.keyEqualTo(Key.builder()
             .partitionValue(OutboxStatus.PENDING.name())
             .build());
         QueryEnhancedRequest request = QueryEnhancedRequest.builder()
             .queryConditional(conditional)
             .limit(limit)
+            .filterExpression(filterExpression)
             .scanIndexForward(true)
             .build();
 

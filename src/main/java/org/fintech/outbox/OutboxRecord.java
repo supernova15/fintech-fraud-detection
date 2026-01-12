@@ -19,6 +19,7 @@ public class OutboxRecord {
     private double riskScore;
     private long createdAt;
     private long updatedAt;
+    private long nextAttemptAt;
     private int attempts;
     private String lastError;
 
@@ -77,6 +78,15 @@ public class OutboxRecord {
 
     public void setUpdatedAt(long updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @DynamoDbAttribute("next_attempt_at")
+    public long getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+
+    public void setNextAttemptAt(long nextAttemptAt) {
+        this.nextAttemptAt = nextAttemptAt;
     }
 
     @DynamoDbAttribute("attempts")

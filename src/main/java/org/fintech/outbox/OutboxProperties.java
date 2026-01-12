@@ -15,6 +15,7 @@ public class OutboxProperties {
     private long pollIntervalMillis = 1000;
     private int batchSize = 10;
     private int maxPublishAttempts = 10;
+    private long publishBackoffMillis = 1000;
 
     public boolean isEnabled() {
         return enabled;
@@ -94,5 +95,13 @@ public class OutboxProperties {
 
     public void setMaxPublishAttempts(int maxPublishAttempts) {
         this.maxPublishAttempts = maxPublishAttempts;
+    }
+
+    public long getPublishBackoffMillis() {
+        return publishBackoffMillis;
+    }
+
+    public void setPublishBackoffMillis(long publishBackoffMillis) {
+        this.publishBackoffMillis = publishBackoffMillis;
     }
 }
