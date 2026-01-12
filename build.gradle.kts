@@ -34,6 +34,7 @@ dependencies {
     implementation("software.amazon.awssdk:sts")
     implementation("software.amazon.awssdk:auth")
     implementation("software.amazon.awssdk:regions")
+    implementation("software.amazon.awssdk:cloudwatch")
     implementation("software.amazon.awssdk:dynamodb")
     implementation("software.amazon.awssdk:dynamodb-enhanced")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
