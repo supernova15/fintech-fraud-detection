@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -177,12 +178,22 @@ public class SqsTransactionConsumer implements SmartLifecycle {
             processSuccess.increment();
         } catch (Exception ex) {
             processFailure.increment();
-            log.warn(
-                "event=sqs_process_failed message_id={} queue_url={}",
-                message.messageId(),
-                properties.getQueueUrl(),
-                ex
-            );
+            if (isNonRetryable(ex)) {
+                log.error(
+                    "event=sqs_process_failed_nonretryable message_id={} queue_url={}",
+                    message.messageId(),
+                    properties.getQueueUrl(),
+                    ex
+                );
+                deleteMessage(message);
+            } else {
+                log.warn(
+                    "event=sqs_process_failed message_id={} queue_url={}",
+                    message.messageId(),
+                    properties.getQueueUrl(),
+                    ex
+                );
+            }
         } finally {
             processLatency.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
             inFlight.decrementAndGet();
@@ -243,6 +254,21 @@ public class SqsTransactionConsumer implements SmartLifecycle {
         }
 
         return builder.build();
+    }
+
+    private static boolean isNonRetryable(Exception ex) {
+        if (ex instanceof InvalidProtocolBufferException) {
+            return true;
+        }
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidProtocolBufferException) {
+            return true;
+        }
+        if (ex instanceof IllegalStateException) {
+            String message = ex.getMessage();
+            return message != null && message.startsWith("No rule produced a decision");
+        }
+        return false;
     }
 
     private void sleepBackoff() {

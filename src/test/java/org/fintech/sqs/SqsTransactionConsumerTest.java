@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -116,6 +117,41 @@ class SqsTransactionConsumerTest {
         invokeProcessMessage(consumer, message);
 
         verify(sqsClient, never()).deleteMessage(any(DeleteMessageRequest.class));
+        assertThat(getInFlight(consumer)).isZero();
+    }
+
+    @Test
+    void processMessageDeletesWhenNonRetryableFailure() throws Exception {
+        SqsClient sqsClient = mock(SqsClient.class);
+        SqsProperties properties = new SqsProperties();
+        properties.setQueueUrl("queue-url");
+        SqsTransactionProcessor processor = mock(SqsTransactionProcessor.class);
+        ObjectProvider<OutboxWriter> outboxWriterProvider = mock(ObjectProvider.class);
+        when(outboxWriterProvider.getIfAvailable()).thenReturn(null);
+        when(processor.process("payload")).thenThrow(new InvalidProtocolBufferException("bad payload"));
+
+        ExecutorService processingExecutor = newDirectExecutorService();
+        ExecutorService pollerExecutor = newDirectExecutorService();
+        SqsTransactionConsumer consumer = new SqsTransactionConsumer(
+            sqsClient,
+            properties,
+            processor,
+            processingExecutor,
+            pollerExecutor,
+            outboxWriterProvider,
+            new SimpleMeterRegistry()
+        );
+
+        Message message = Message.builder()
+            .messageId("msg-3")
+            .receiptHandle("receipt-3")
+            .body("payload")
+            .build();
+
+        setInFlight(consumer, 1);
+        invokeProcessMessage(consumer, message);
+
+        verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
         assertThat(getInFlight(consumer)).isZero();
     }
 
