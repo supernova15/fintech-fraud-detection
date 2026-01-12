@@ -7,6 +7,11 @@ on:
     # tags:
     #   - "v*"
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Run deploy job"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -83,6 +88,7 @@ jobs:
 
   deploy:
     needs: build-and-push
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
     runs-on: ubuntu-latest
     env:
       EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
