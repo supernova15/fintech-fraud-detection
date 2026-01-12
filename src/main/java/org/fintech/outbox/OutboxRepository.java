@@ -2,6 +2,7 @@ package org.fintech.outbox;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -10,12 +11,13 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.UpdateItemEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.enhanced.dynamodb.Expression;
 
 @Component
 @ConditionalOnProperty(prefix = "outbox", name = "enabled", havingValue = "true")
@@ -77,5 +79,30 @@ public class OutboxRepository {
 
     public void update(OutboxRecord record) {
         table.updateItem(record);
+    }
+
+    public boolean claimForPublish(OutboxRecord record, long claimLeaseMillis) {
+        long now = System.currentTimeMillis();
+        long expectedUpdatedAt = record.getUpdatedAt();
+        record.setUpdatedAt(now);
+        record.setNextAttemptAt(now + Math.max(0, claimLeaseMillis));
+
+        Expression condition = Expression.builder()
+            .expression("status = :pending AND updated_at = :expectedUpdatedAt")
+            .expressionValues(Map.of(
+                ":pending", AttributeValue.builder().s(OutboxStatus.PENDING.name()).build(),
+                ":expectedUpdatedAt", AttributeValue.builder().n(Long.toString(expectedUpdatedAt)).build()
+            ))
+            .build();
+
+        try {
+            table.updateItem(UpdateItemEnhancedRequest.builder(OutboxRecord.class)
+                .item(record)
+                .conditionExpression(condition)
+                .build());
+            return true;
+        } catch (ConditionalCheckFailedException ex) {
+            return false;
+        }
     }
 }

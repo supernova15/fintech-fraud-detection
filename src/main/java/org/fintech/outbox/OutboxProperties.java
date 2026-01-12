@@ -16,6 +16,8 @@ public class OutboxProperties {
     private int batchSize = 10;
     private int maxPublishAttempts = 10;
     private long publishBackoffMillis = 1000;
+    private int publishWorkers = 2;
+    private long publishClaimLeaseMillis = 5000;
 
     public boolean isEnabled() {
         return enabled;
@@ -103,5 +105,21 @@ public class OutboxProperties {
 
     public void setPublishBackoffMillis(long publishBackoffMillis) {
         this.publishBackoffMillis = publishBackoffMillis;
+    }
+
+    public int getPublishWorkers() {
+        return publishWorkers;
+    }
+
+    public void setPublishWorkers(int publishWorkers) {
+        this.publishWorkers = publishWorkers;
+    }
+
+    public long getPublishClaimLeaseMillis() {
+        return publishClaimLeaseMillis;
+    }
+
+    public void setPublishClaimLeaseMillis(long publishClaimLeaseMillis) {
+        this.publishClaimLeaseMillis = publishClaimLeaseMillis;
     }
 }

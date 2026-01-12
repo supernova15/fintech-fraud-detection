@@ -7,7 +7,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,7 +28,9 @@ public class OutboxPublisher implements SmartLifecycle {
     private final OutboxRepository repository;
     private final OutboxProperties properties;
     private final SqsClient sqsClient;
-    private final ExecutorService executor;
+    private final int workerCount;
+    private final ExecutorService pollerExecutor;
+    private final ExecutorService workerExecutor;
     private final Counter publishSuccess;
     private final Counter publishFailed;
     private final Counter publishDead;
@@ -42,9 +46,16 @@ public class OutboxPublisher implements SmartLifecycle {
         this.repository = repository;
         this.properties = properties;
         this.sqsClient = sqsClient;
-        this.executor = Executors.newSingleThreadExecutor(runnable -> {
+        this.workerCount = Math.max(1, properties.getPublishWorkers());
+        this.pollerExecutor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable);
-            thread.setName("outbox-publisher");
+            thread.setName("outbox-publisher-poller");
+            return thread;
+        });
+        AtomicInteger workerIndex = new AtomicInteger(1);
+        this.workerExecutor = Executors.newFixedThreadPool(workerCount, runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setName("outbox-publisher-worker-" + workerIndex.getAndIncrement());
             return thread;
         });
         this.publishSuccess = meterRegistry.counter("outbox.publish.success");
@@ -63,16 +74,18 @@ public class OutboxPublisher implements SmartLifecycle {
             return;
         }
         running = true;
-        executor.submit(this::publishLoop);
-        log.info("event=outbox_publisher_started table={} decision_queue_url={}",
+        pollerExecutor.submit(this::publishLoop);
+        log.info("event=outbox_publisher_started table={} decision_queue_url={} workers={}",
             properties.getTableName(),
-            properties.getDecisionQueueUrl());
+            properties.getDecisionQueueUrl(),
+            workerCount);
     }
 
     @Override
     public void stop() {
         running = false;
-        executor.shutdownNow();
+        pollerExecutor.shutdownNow();
+        workerExecutor.shutdownNow();
         log.info("event=outbox_publisher_stopped table={}", properties.getTableName());
     }
 
@@ -94,12 +107,27 @@ public class OutboxPublisher implements SmartLifecycle {
                 continue;
             }
             for (OutboxRecord record : records) {
-                publishRecord(record);
+                if (!running) {
+                    return;
+                }
+                try {
+                    workerExecutor.submit(() -> publishRecord(record));
+                } catch (RejectedExecutionException ex) {
+                    log.debug("event=outbox_publish_rejected outbox_id={} transaction_id={}",
+                        record.getOutboxId(),
+                        record.getTransactionId());
+                }
             }
         }
     }
 
     private void publishRecord(OutboxRecord record) {
+        if (!repository.claimForPublish(record, properties.getPublishClaimLeaseMillis())) {
+            log.debug("event=outbox_publish_skipped outbox_id={} transaction_id={}",
+                record.getOutboxId(),
+                record.getTransactionId());
+            return;
+        }
         long start = System.nanoTime();
         int attempts = record.getAttempts();
         try {
