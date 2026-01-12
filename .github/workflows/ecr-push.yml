@@ -81,4 +81,58 @@ jobs:
           fi
           echo "AWS_ROLE_ARN is set (length=${#ROLE_ARN})."
 
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'fintech-fraud' }}
+      K8S_OVERLAY: ${{ vars.K8S_OVERLAY || 'deploy/k8s/overlays/aws' }}
 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanity check deployment vars are set
+        shell: bash
+        run: |
+          if [ -z "${EKS_CLUSTER_NAME}" ]; then
+            echo "EKS_CLUSTER_NAME is EMPTY. Set it in: Settings -> Secrets and variables -> Actions -> Variables"
+            exit 1
+          fi
+          if [ -z "${AWS_ROLE_ARN}" ]; then
+            echo "AWS_ROLE_ARN is EMPTY. Set it in: Settings -> Secrets and variables -> Actions -> Variables"
+            exit 1
+          fi
+          echo "EKS_CLUSTER_NAME is set (length=${#EKS_CLUSTER_NAME})."
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.29.0"
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -k "$K8S_OVERLAY"
+
+      - name: Update deployment image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          kubectl set image deployment/fintech-fraud-detection app="$IMAGE" -n "$K8S_NAMESPACE"
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/fintech-fraud-detection -n "$K8S_NAMESPACE" --timeout=120s
