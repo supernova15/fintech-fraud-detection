@@ -37,6 +37,12 @@ import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.fintech.sqs.SqsTransactionConsumer;
+import org.fintech.outbox.OutboxPublisher;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
@@ -56,6 +62,14 @@ class SqsOutboxIntegrationTest {
 
     private static String transactionsQueueUrl;
     private static String decisionsQueueUrl;
+
+    private static final Logger log = LoggerFactory.getLogger(SqsOutboxIntegrationTest.class);
+
+    @Autowired
+    private SqsTransactionConsumer sqsTransactionConsumer;
+
+    @Autowired
+    private OutboxPublisher outboxPublisher;
 
     @Autowired
     private SqsClient sqsClient;
@@ -81,6 +95,19 @@ class SqsOutboxIntegrationTest {
         registry.add("outbox.access-key", () -> localstack.getAccessKey());
         registry.add("outbox.secret-key", () -> localstack.getSecretKey());
         registry.add("outbox.poll-interval-millis", () -> 250L);
+    }
+
+    @BeforeEach
+    void logBeans() {
+        log.info("SqsTransactionConsumer bean present: {}", sqsTransactionConsumer != null);
+        log.info("OutboxPublisher bean present: {}", outboxPublisher != null);
+        log.info("SqsClient bean present: {}", sqsClient != null);
+        if (sqsTransactionConsumer != null) {
+            log.info("SqsTransactionConsumer running: {}", sqsTransactionConsumer.isRunning());
+        }
+        if (outboxPublisher != null) {
+            log.info("OutboxPublisher running: {}", outboxPublisher.isRunning());
+        }
     }
 
     @Test

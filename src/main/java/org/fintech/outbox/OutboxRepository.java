@@ -2,6 +2,7 @@ package org.fintech.outbox;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -75,7 +76,12 @@ public class OutboxRepository {
             .build();
 
         List<OutboxRecord> records = new ArrayList<>();
-        statusIndex.query(request).stream().forEach(page -> records.addAll(page.items()));
+        statusIndex.query(request).stream().forEach(page -> {
+            log.info("Query page with {} items", page.items().size());
+            page.items().forEach(item -> log.info("Record: outboxId={}, status={}, nextAttemptAt={}, createdAt={}",
+                item.getOutboxId(), item.getStatus(), item.getNextAttemptAt(), item.getCreatedAt()));
+            records.addAll(page.items());
+        });
         log.info("Fetched {} pending records", records.size());
         if (records.size() > limit) {
             return records.subList(0, limit);
@@ -90,17 +96,25 @@ public class OutboxRepository {
     public boolean claimForPublish(OutboxRecord record, long claimLeaseMillis) {
         long now = System.currentTimeMillis();
         long expectedUpdatedAt = record.getUpdatedAt();
+        log.info("Claim attempt: outboxId={}, expectedUpdatedAt={}, now={}, claimLeaseMillis={}",
+            record.getOutboxId(), expectedUpdatedAt, now, claimLeaseMillis);
         record.setUpdatedAt(now);
         record.setNextAttemptAt(now + Math.max(0, claimLeaseMillis));
 
+        Map<String, String> attributeNames = new HashMap<>();
+        attributeNames.put("#status", "status");
+        attributeNames.put("#updated_at", "updated_at");
+
         Expression condition = Expression.builder()
-            .expression("status = :pending AND updated_at = :expectedUpdatedAt")
+            .expression("#status = :pending AND #updated_at = :expectedUpdatedAt")
             .expressionValues(Map.of(
                 ":pending", AttributeValue.builder().s(OutboxStatus.PENDING.name()).build(),
                 ":expectedUpdatedAt", AttributeValue.builder().n(Long.toString(expectedUpdatedAt)).build()
             ))
+            .expressionNames(attributeNames)
             .build();
 
+        log.info("Claim condition: status = :pending AND updated_at = :expectedUpdatedAt, :expectedUpdatedAt={}", expectedUpdatedAt);
         try {
             table.updateItem(UpdateItemEnhancedRequest.builder(OutboxRecord.class)
                 .item(record)
@@ -111,6 +125,9 @@ public class OutboxRepository {
         } catch (ConditionalCheckFailedException ex) {
             log.info("Claim failed for outbox_id={}, transaction_id={}", record.getOutboxId(), record.getTransactionId());
             return false;
+        } catch (Exception ex) {
+            log.error("Unexpected error during claim for outbox_id={}, transaction_id={}", record.getOutboxId(), record.getTransactionId(), ex);
+            throw ex;
         }
     }
 }
