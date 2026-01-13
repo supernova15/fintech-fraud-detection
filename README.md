@@ -112,9 +112,9 @@ Key properties (see `src/main/resources/application.properties` for all values):
 
 ## Docs
 
-- Local testing: `localtesting.md`
+- Local testing: `local-testing.md`
 - Deployment notes: `deployment.md`
-- Production testing checklist: `production_testing.md`
+- Production testing checklist: `production-testing.md`
 - Resilience testing: `resilience-testing.md`
 - Demo walkthrough: `demo_final.mp4`
 
