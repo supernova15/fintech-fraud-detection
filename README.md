@@ -116,6 +116,7 @@ Key properties (see `src/main/resources/application.properties` for all values):
 - Deployment notes: `deployment.md`
 - Production testing checklist: `production_testing.md`
 - Resilience testing: `resilience-testing.md`
+- Demo walkthrough: `demo_final.mp4`
 
 ## Future Improvements
 
