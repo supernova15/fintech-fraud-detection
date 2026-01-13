@@ -100,24 +100,32 @@ public class OutboxPublisher implements SmartLifecycle {
     }
 
     private void publishLoop() {
-        while (running && !Thread.currentThread().isInterrupted()) {
-            List<OutboxRecord> records = repository.fetchPending(properties.getBatchSize());
-            if (records.isEmpty()) {
-                sleepInterval();
-                continue;
-            }
-            for (OutboxRecord record : records) {
-                if (!running) {
-                    return;
+        try {
+            log.info("Starting outbox publisher poller");
+            while (running && !Thread.currentThread().isInterrupted()) {
+                log.info("Fetching pending records, batchSize={}", properties.getBatchSize());
+                List<OutboxRecord> records = repository.fetchPending(properties.getBatchSize());
+                if (records.isEmpty()) {
+                    log.info("No pending records found, sleeping");
+                    sleepInterval();
+                    continue;
                 }
-                try {
-                    workerExecutor.submit(() -> publishRecord(record));
-                } catch (RejectedExecutionException ex) {
-                    log.debug("event=outbox_publish_rejected outbox_id={} transaction_id={}",
-                        record.getOutboxId(),
-                        record.getTransactionId());
+                for (OutboxRecord record : records) {
+                    if (!running) {
+                        return;
+                    }
+                    try {
+                        workerExecutor.submit(() -> publishRecord(record));
+                    } catch (RejectedExecutionException ex) {
+                        log.debug("event=outbox_publish_rejected outbox_id={} transaction_id={}",
+                            record.getOutboxId(),
+                            record.getTransactionId());
+                    }
                 }
             }
+        } catch (Throwable t) {
+            log.error("Unexpected error in outbox publisher poller", t);
+            throw t;
         }
     }
 

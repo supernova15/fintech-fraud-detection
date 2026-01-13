@@ -18,6 +18,8 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.UpdateItemEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 @ConditionalOnProperty(prefix = "outbox", name = "enabled", havingValue = "true")
@@ -25,6 +27,7 @@ public class OutboxRepository {
 
     private final DynamoDbTable<OutboxRecord> table;
     private final DynamoDbIndex<OutboxRecord> statusIndex;
+    private static final Logger log = LoggerFactory.getLogger(OutboxRepository.class);
 
     public OutboxRepository(DynamoDbEnhancedClient enhancedClient, OutboxProperties properties) {
         if (!StringUtils.hasText(properties.getTableName())) {
@@ -44,6 +47,7 @@ public class OutboxRepository {
                 .build());
             return true;
         } catch (ConditionalCheckFailedException ex) {
+            log.info("Claim failed for outbox_id={}, transaction_id={}", record.getOutboxId(), record.getTransactionId());
             return false;
         }
     }
@@ -53,6 +57,7 @@ public class OutboxRepository {
             return List.of();
         }
         long now = System.currentTimeMillis();
+        log.info("Fetching pending records, now={}, limit={}", now, limit);
         Expression filterExpression = Expression.builder()
             .expression("attribute_not_exists(next_attempt_at) OR next_attempt_at <= :now")
             .expressionValues(
@@ -71,6 +76,7 @@ public class OutboxRepository {
 
         List<OutboxRecord> records = new ArrayList<>();
         statusIndex.query(request).stream().forEach(page -> records.addAll(page.items()));
+        log.info("Fetched {} pending records", records.size());
         if (records.size() > limit) {
             return records.subList(0, limit);
         }
@@ -100,8 +106,10 @@ public class OutboxRepository {
                 .item(record)
                 .conditionExpression(condition)
                 .build());
+            log.info("Claim successful for outbox_id={}, transaction_id={}", record.getOutboxId(), record.getTransactionId());
             return true;
         } catch (ConditionalCheckFailedException ex) {
+            log.info("Claim failed for outbox_id={}, transaction_id={}", record.getOutboxId(), record.getTransactionId());
             return false;
         }
     }

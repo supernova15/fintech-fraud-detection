@@ -11,10 +11,13 @@ import org.fintech.sqs.SqsTransactionProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 @ConditionalOnProperty(prefix = "outbox", name = "enabled", havingValue = "true")
 public class OutboxWriter {
+    private static final Logger log = LoggerFactory.getLogger(OutboxWriter.class);
 
     private final OutboxRepository repository;
     private final Counter writeCreated;
@@ -55,6 +58,7 @@ public class OutboxWriter {
         record.setCreatedAt(now);
         record.setUpdatedAt(now);
         record.setNextAttemptAt(now);
+        log.info("Writing outbox record, outboxId={}, nextAttemptAt={}", outboxId, now);
         record.setAttempts(0);
 
         try {
